@@ -1,0 +1,23 @@
+{
+  "caches": [
+    {
+      "source": "/*",
+      "cacheTtl": 0
+    }
+  ],
+  "headers": [
+    {
+      "source": "/*",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "max-age=0"
+        }
+      ]
+    }
+  ]
+}
