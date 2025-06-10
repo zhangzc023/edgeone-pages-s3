@@ -1,22 +1,11 @@
-const PATTERNS = [
-    // github
-    /^(?:https?:\/\/)?github\.com.*$/i,
-    /^(?:https?:\/\/)?api\.github\.com.*$/i,
-    /^(?:https?:\/\/)?raw\.githubusercontent\.com.*$/i,
-    // tgapi
-    /^(?:https?:\/\/)?api\.telegram\.org.*$/i,
-    /^(?:https?:\/\/)?get\.docker\.co.*$/i,
-    /^(?:https?:\/\/)?file\.990223\.xyz.*$/i,
+// 统一的代理配置：包含匹配模式和是否允许返回 HTML
+const PROXY_CONFIG = [
+    { pattern: /^(?:https?:\/\/)?github\.com.*$/i, allowHtml: false },
+    { pattern: /^(?:https?:\/\/)?api\.github\.com.*$/i, allowHtml: false },
+    { pattern: /^(?:https?:\/\/)?raw\.githubusercontent\.com.*$/i, allowHtml: false },
+    { pattern: /^(?:https?:\/\/)?api\.telegram\.org.*$/i, allowHtml: false },
+    { pattern: /^(?:https?:\/\/)?get\.docker\.com.*$/i, allowHtml: false },
 ];
-
-function checkUrl(url) {
-    try {
-        const parsed = new URL(url);
-        return PATTERNS.some(pattern => pattern.test(parsed.hostname));
-    } catch {
-        return false;
-    }
-}
 
 function notFound(text) {
     return new Response(text || '404', {
@@ -24,8 +13,7 @@ function notFound(text) {
     });
 }
 
-
-export async function onRequest({request}) {
+export async function onRequest({ request }) {
     const url = new URL(request.url);
 
     let realUrl = null;
@@ -34,15 +22,20 @@ export async function onRequest({request}) {
     if (pathname.search(/^https?:\/\//) !== 0) {
         pathname = 'https://' + pathname;
     }
-    if (!checkUrl(pathname)) {
-        return notFound();
-    }
-
-    realUrl = new URL(pathname);
-    realUrl.search = url.search;
-
 
     try {
+        const parsedUrl = new URL(pathname);
+        const host = parsedUrl.hostname;
+
+        // 查找匹配的代理配置
+        const config = PROXY_CONFIG.find(cfg => cfg.pattern.test(host));
+        if (!config) {
+            return notFound();
+        }
+
+        realUrl = new URL(pathname);
+        realUrl.search = url.search;
+
         let headers = new Headers();
         headers.set('Host', realUrl.host);
         headers.set('Referer', realUrl.href);
@@ -59,10 +52,14 @@ export async function onRequest({request}) {
             redirect: 'follow',
             cache: 'no-store' // 添加这行
         });
+
         let contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('text/html')) {
+
+        // 检查是否允许返回 HTML
+        if (contentType && contentType.includes('text/html') && !config.allowHtml) {
             return notFound();
         }
+
         const newResponse = new Response(response.body, response);
         newResponse.headers.set('Access-Control-Allow-Origin', '*');
         newResponse.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -76,4 +73,3 @@ export async function onRequest({request}) {
         });
     }
 }
-
