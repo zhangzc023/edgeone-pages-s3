@@ -1,10 +1,12 @@
 // 统一的代理配置：包含匹配模式和是否允许返回 HTML
 const PROXY_CONFIG = [
-    { pattern: /^(?:https?:\/\/)?github\.com.*$/i, allowHtml: false },
-    { pattern: /^(?:https?:\/\/)?api\.github\.com.*$/i, allowHtml: false },
-    { pattern: /^(?:https?:\/\/)?raw\.githubusercontent\.com.*$/i, allowHtml: false },
-    { pattern: /^(?:https?:\/\/)?api\.telegram\.org.*$/i, allowHtml: false },
-    { pattern: /^(?:https?:\/\/)?get\.docker\.com.*$/i, allowHtml: false },
+    {pattern: /^(?:https?:\/\/)?github\.com.*$/i, allowHtml: false},
+    {pattern: /^(?:https?:\/\/)?api\.github\.com.*$/i, allowHtml: false},
+    {pattern: /^(?:https?:\/\/)?raw\.githubusercontent\.com.*$/i, allowHtml: false},
+    {pattern: /^(?:https?:\/\/)?api\.telegram\.org.*$/i, allowHtml: false},
+    {pattern: /^(?:https?:\/\/)?get\.docker\.com.*$/i, allowHtml: false},
+    {pattern: /^(?:https?:\/\/)?api\.stack-auth\.com.*$/i, allowHtml: false},
+    {pattern: /^(?:https?:\/\/)?1ed9db35e6ef06864313ed80fac99984\.r2\.cloudflarestorage\.com.*$/i, allowHtml: false},
 ];
 
 function notFound(text) {
@@ -13,18 +15,21 @@ function notFound(text) {
     });
 }
 
-export async function onRequest({ request }) {
+export async function onRequest({request}) {
     const url = new URL(request.url);
 
     let realUrl = null;
-    let pathname = url.pathname.slice(1);
-
-    if (pathname.search(/^https?:\/\//) !== 0) {
-        pathname = 'https://' + pathname;
+    let pHost = request.headers.get("p-host");
+    let proxyUrl = url.pathname.slice(1);
+    if (pHost) {
+        proxyUrl = pHost + "/" + proxyUrl;
     }
 
+    if (proxyUrl.search(/^https?:\/\//) !== 0) {
+        proxyUrl = 'https://' + proxyUrl;
+    }
     try {
-        const parsedUrl = new URL(pathname);
+        const parsedUrl = new URL(proxyUrl);
         const host = parsedUrl.hostname;
 
         // 查找匹配的代理配置
@@ -33,9 +38,8 @@ export async function onRequest({ request }) {
             return notFound();
         }
 
-        realUrl = new URL(pathname);
+        realUrl = new URL(proxyUrl);
         realUrl.search = url.search;
-
         let headers = new Headers();
         headers.set('Host', realUrl.host);
         headers.set('Referer', realUrl.href);
@@ -49,8 +53,7 @@ export async function onRequest({ request }) {
             method: request.method,
             headers: headers,
             body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-            redirect: 'follow',
-            cache: 'no-store' // 添加这行
+            redirect: 'follow'
         });
 
         let contentType = response.headers.get('content-type');
@@ -62,14 +65,11 @@ export async function onRequest({ request }) {
 
         const newResponse = new Response(response.body, response);
         newResponse.headers.set('Access-Control-Allow-Origin', '*');
-        newResponse.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        newResponse.headers.set('Pragma', 'no-cache');
-        newResponse.headers.set('Expires', '0');
         return newResponse;
     } catch (error) {
         return new Response(error.message, {
             status: 500,
-            headers: { 'Content-Type': 'text/plain' }
+            headers: {'Content-Type': 'text/plain'}
         });
     }
 }
